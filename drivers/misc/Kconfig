@@ -615,6 +615,12 @@ config LGE_SM100
         default n
         help
           This option enalbes device driver support for SM100 Vibrator driver.
+
+config MSM8974_PWM_VIBRATOR
+    bool "MSM8974 vibrator support"
+        depends on ANDROID_TIMED_OUTPUT
+        help
+          This option enables device driver support for MSM8974 Vibrator driver.
           Some functions should be given by platform data for enable PWM, Motor IC, etc.
 
 config PMIC8XXX_NFC

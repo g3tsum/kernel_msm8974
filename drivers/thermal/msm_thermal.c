@@ -26,6 +26,7 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/of.h>
+#include <linux/trinity.h>
 #include <linux/sysfs.h>
 #include <linux/types.h>
 #include <linux/android_alarm.h>
@@ -33,6 +34,8 @@
 #include <mach/rpm-regulator.h>
 #include <mach/rpm-regulator-smd.h>
 #include <linux/regulator/consumer.h>
+//struct cpufreq_policy *cpu_policy = NULL;
+struct cpufreq_policy *policy = NULL;
 
 #define MAX_RAILS 5
 
@@ -47,7 +50,8 @@ static struct alarm thermal_rtc;
 static struct kobject *tt_kobj;
 static struct work_struct timer_work;
 
-static int enabled;
+static int enabled = 1;
+static int is_throttling = 0;
 static int rails_cnt;
 static int psm_rails_cnt;
 static int limit_idx;
@@ -570,11 +574,11 @@ static int msm_thermal_get_freq_table(void)
 		goto fail;
 	}
 
-	while (table[i].frequency != CPUFREQ_TABLE_END)
+	while (table[i].frequency != user_policy_max_freq)
 		i++;
 
 	limit_idx_low = 0;
-	limit_idx_high = limit_idx = i - 1;
+	limit_idx_high = limit_idx = i;
 	BUG_ON(limit_idx_high <= 0 || limit_idx_high <= limit_idx_low);
 fail:
 	return ret;
@@ -592,9 +596,11 @@ static int update_cpu_max_freq(int cpu, uint32_t max_freq)
 	if (max_freq != MSM_CPUFREQ_NO_LIMIT)
 		pr_info("%s: Limiting cpu%d max frequency to %d\n",
 				KBUILD_MODNAME, cpu, max_freq);
-	else
+	else {
 		pr_info("%s: Max frequency reset for cpu%d\n",
 				KBUILD_MODNAME, cpu);
+		is_throttling = 0;
+	}
 
 	if (cpu_online(cpu)) {
 		struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
@@ -769,6 +775,12 @@ static void __ref do_freq_control(long temp)
 	uint32_t max_freq = limited_max_freq;
 
 	if (temp >= msm_thermal_info.limit_temp_degC) {
+		if ( !is_throttling ) {
+			policy = cpufreq_cpu_get(0);
+			user_policy_max_freq = policy->max;
+			is_throttling = 1;
+		}
+
 		if (limit_idx == limit_idx_low)
 			return;
 

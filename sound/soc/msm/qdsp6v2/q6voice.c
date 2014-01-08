@@ -3447,8 +3447,7 @@ static int voice_cvs_start_playback(struct voice_data *v)
 		cvs_start_playback.hdr.token = 0;
 		cvs_start_playback.hdr.opcode = VSS_IPLAYBACK_CMD_START;
 		cvs_start_playback.playback_mode.port_id =
-						v->music_info.port_id;
-
+						VSS_IPLAYBACK_PORT_ID_DEFAULT;
 		v->cvs_state = CMD_STATUS_FAIL;
 
 		ret = apr_send_pkt(apr_cvs, (uint32_t *) &cvs_start_playback);
@@ -3545,21 +3544,17 @@ fail:
 	return ret;
 }
 
-int voc_start_playback(uint32_t set, uint16_t port_id)
+int voc_start_playback(uint32_t set)
 {
 	int ret = 0;
 	u16 cvs_handle;
+	int i;
 
-	struct voice_data *v = NULL;
 
-	if (port_id == VOICE_PLAYBACK_TX)
-		v = voice_get_session(voc_get_session_id(VOICE_SESSION_NAME));
-	else if (port_id == VOICE2_PLAYBACK_TX)
-		v = voice_get_session(voc_get_session_id(VOICE2_SESSION_NAME));
+	for (i = 0; i < MAX_VOC_SESSIONS; i++) {
+		struct voice_data *v = &common.voice[i];
 
-	if (v != NULL) {
 		mutex_lock(&v->lock);
-		v->music_info.port_id = port_id;
 		v->music_info.play_enable = set;
 		if (set)
 			v->music_info.count++;
@@ -3577,8 +3572,6 @@ int voc_start_playback(uint32_t set, uint16_t port_id)
 		}
 
 		mutex_unlock(&v->lock);
-	} else {
-		pr_err("%s: Invalid port_id 0x%x", __func__, port_id);
 	}
 
 	return ret;
